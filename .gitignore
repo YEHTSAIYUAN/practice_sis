@@ -1,5 +1,52 @@
 .vscode
-devel/
-build/
-.bag
+*~
+*.png
 *.pyc
+*.ipynb_checkpoints/
+*.swp
+*.swo
+*.vscode
+*.xls
+*.csv
+*.zip
+*.rar
+*.7z
+*.swp
+
+
+# TENSORFLOW
+*.pb
+*.meta
+*.index
+
+
+# PYTORCH
+*.pth
+*.pkl
+*.weights
+
+
+# ROS
+*.log
+*.bag
+*.pcd
+*.ply
+catkin_ws/build/
+catkin_ws/install/
+catkin_ws/devel/
+catkin_ws/src/CMakeLists.txt
+catkin_ws/.catkin_workspace
+catkin_ws/.catkin_tools 
+
+
+# PCL
+*.ply
+*.pcd
+*.stl
+
+*.gv
+*.svg
+*.out
+*.cu
+
+!figures/

@@ -61,10 +61,10 @@ namespace teleop_twist_joy
     bool pub_auto;
 
     std::map<std::string, int> axis_linear_map;
-    std::map<std::string, std::map<std::string, double>> scale_linear_map;
+    std::map<std::string, std::map<std::string, double> > scale_linear_map;
 
     std::map<std::string, int> axis_angular_map;
-    std::map<std::string, std::map<std::string, double>> scale_angular_map;
+    std::map<std::string, std::map<std::string, double> > scale_angular_map;
 
     bool sent_disable_msg;
   };
