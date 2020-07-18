@@ -1,0 +1,5 @@
+<launch>
+  <!--task1 dataset1 -->
+  <node name="dataset1_object_detection_node" pkg="dataset1" type="dataset1_mask.py" output="screen"/>
+ 
+</launch>

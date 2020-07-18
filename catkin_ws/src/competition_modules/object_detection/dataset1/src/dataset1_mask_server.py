@@ -6,19 +6,20 @@ import cv2
 import numpy as np;
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
+from competition_msgs.msg import object_detection, object_detectionResponse
+
 cvbridge = CvBridge()
-rospy.init_node('object_detection',anonymous=False)
-image_pub=rospy.Publisher('/object_detection/dataset1_mask', Image, queue_size=10)
+#image_pub=rospy.Publisher('/object_detection/dataset1_mask', Image, queue_size=10)
 
 def main():
-    rospy.Subscriber('/camera/color/image_raw', Image, maskCallback)
-    rospy.init_node("dataset1_mask")
-    #rospy.Service("dataset1_object_detection",object_detection,dataset1_object_detect)
+
+    rospy.init_node('dataset1_object_detection_node')
+    rospy.Service('dataset1_object_detection',object_detection,dataset1_object_detect)
     rospy.spin()
 
-def maskCallback(msg):
+def dataset1_object_detect(req):
     try:
-        cv_img = cvbridge.imgmsg_to_cv2(msg,"bgr8")
+        cv_img = cvbridge.imgmsg_to_cv2(req.rgb_img,"bgr8")
     except CvBridgeError as e:
         print(e)
     hsv_img = cv2.cvtColor(cv_img, cv2.COLOR_BGR2HSV)
@@ -78,7 +79,8 @@ def maskCallback(msg):
     print("publish dataset1 mask img")    
     mask = mask_blue_eroded_dilated + mask_red_eroded_dilated + mask_green_eroded_dilated
     img_msg = cvbridge.cv2_to_imgmsg(mask)
-    image_pub.publish(img_msg)
+    #image_pub.publish(img_msg)
+    return object_detectionResponse(img_msg)
 
 
 
