@@ -6,32 +6,60 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-void imageCb(const sensor_msgs::ImageConstPtr& msg)
+// PCL
+#include <pcl/io/pcd_io.h>
+#include <pcl/io/ply_io.h>
+#include <pcl/point_types.h>
+#include <pcl/common/common.h>
+#include <pcl/common/pca.h> // PCA
+#include <pcl/features/normal_3d.h>
+#include <pcl/kdtree/kdtree.h>
+#include <pcl/registration/icp.h> 
+#include <pcl/filters/filter.h> // RemoveNaN
+#include <pcl/filters/radius_outlier_removal.h> // RemoveOutlier
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/passthrough.h> // Passthrough
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/ModelCoefficients.h>
+
+#include <pcl_conversions/pcl_conversions.h>
+
+#include <pcl_ros/transforms.h>
+//msg &srv
+#include <competition_msgs/pose_estimation.h> //pose_estimation.srv
+
+
+typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudXYZRGB;
+bool pose_estimate_cb(competition_msgs::pose_estimationRequest& req,competition_msgs::pose_estimationResponse& resp);
+
+bool pose_estimate_cb(competition_msgs::pose_estimationRequest& req,
+                      competition_msgs::pose_estimationResponse& resp)
 {
-    cv_bridge::CvImagePtr cv_ptr;
-    try
-    {
-      cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-    }
-    catch (cv_bridge::Exception& e)
-    {
-      ROS_ERROR("cv_bridge exception: %s", e.what());
-      return;
-    }
+  PointCloudXYZRGB::Ptr pcl(new PointCloudXYZRGB);
+  pcl::fromROSMsg (req.pc_in, *pcl);
+  printf("original Cloud Number: %d\n",pcl->points.size());
+
+  PointCloudXYZRGB::Ptr filtered_pcl(new PointCloudXYZRGB);
+  std::vector<int> indices;
+  pcl::removeNaNFromPointCloud(*pcl,*filtered_pcl,indices);
+  printf("Nonnan Cloud Number: %d\n",filtered_pcl->points.size());
+  resp.id = 123;
+  return true;
 }
 
 int main (int argc, char** argv)
 {
-    //ros initialize ROS
-    ros::init (argc,argv, "estimate_by_pointcloud");
-    ros::NodeHandle nh;
-    //create a subscriber for the input point cloud
-    //ros::Subscriber model_subscriber = nh.subscribe<sensor_msgs::PointCloud2> ("/camera/depth_registered/points", 1, cloud_cb);
-    
-    
-    image_transport::ImageTransport it(nh);
-    image_transport::Subscriber sub = it.subscribe("/object_detection/dataset1_mask", 1, imageCb);
+  //ros initialize ROS
+  ros::init (argc,argv, "estimate_by_pointcloud");
+  ros::NodeHandle nh;
+  
 
-    //ros::Publisher chatter_pub = nh.advertise<std_msgs::String>("mask", 1000);
-    //ros::Rate loop_rate(10);
+  ros::ServiceServer service = nh.advertiseService("pose_estimate_byPC", pose_estimate_cb);
+  ROS_INFO("Ready to extract pointcloud.");
+  ros::spin();
+  return 0;
+
 }

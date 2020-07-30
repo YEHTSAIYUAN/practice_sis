@@ -6,7 +6,8 @@ import cv2
 import numpy as np;
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
-from competition_msgs.msg import object_detection, object_detectionResponse
+from competition_msgs.srv import *
+
 
 cvbridge = CvBridge()
 #image_pub=rospy.Publisher('/object_detection/dataset1_mask', Image, queue_size=10)
@@ -75,8 +76,7 @@ def dataset1_object_detect(req):
         cv2.drawContours(mask_blue_eroded_dilated, [cnt], -1, 100, -1) 
         #(draw img, contour, -1, grayscale or rgb[255, 0, 0],-1=fullfilled)
 
-    
-    print("publish dataset1 mask img")    
+    print("output dataset1 mask img")    
     mask = mask_blue_eroded_dilated + mask_red_eroded_dilated + mask_green_eroded_dilated
     img_msg = cvbridge.cv2_to_imgmsg(mask)
     #image_pub.publish(img_msg)

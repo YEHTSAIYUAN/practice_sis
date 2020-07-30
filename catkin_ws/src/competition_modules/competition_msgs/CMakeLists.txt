@@ -61,7 +61,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(
    FILES
    object_detection.srv
-   #Service2.srv
+   pose_estimation.srv
    
 )
 
@@ -77,7 +77,7 @@ add_service_files(
    DEPENDENCIES
    std_msgs
    sensor_msgs
-   std_msgs
+   geometry_msgs
  )
 
 ################################################
