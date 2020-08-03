@@ -10,7 +10,8 @@ from competition_msgs.srv import *
 
 
 cvbridge = CvBridge()
-#image_pub=rospy.Publisher('/object_detection/dataset1_mask', Image, queue_size=10)
+rospy.init_node('dataset1_object_detection_node')
+image_pub=rospy.Publisher('/object_detection/dataset1_mask', Image, queue_size=10)
 
 def main():
 
@@ -79,7 +80,7 @@ def dataset1_object_detect(req):
     print("output dataset1 mask img")    
     mask = mask_blue_eroded_dilated + mask_red_eroded_dilated + mask_green_eroded_dilated
     img_msg = cvbridge.cv2_to_imgmsg(mask)
-    #image_pub.publish(img_msg)
+    image_pub.publish(img_msg)
     return object_detectionResponse(img_msg)
 
 

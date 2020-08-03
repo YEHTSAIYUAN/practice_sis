@@ -43,7 +43,7 @@ def main():
     
     # ==============  pose estimation ================ #
     pe_request = pose_estimationRequest()
-    #pe_request.mask_img = od_response.mask_img
+    pe_request.mask_img = od_response.mask_img
     pe_request.pc_in = pc_msg
     pe_response = pose_estimate(pe_request)
     

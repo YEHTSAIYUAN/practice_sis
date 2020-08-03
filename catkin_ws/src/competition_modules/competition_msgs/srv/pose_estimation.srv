@@ -1,4 +1,4 @@
-#sensor_msgs/Image mask_img
+sensor_msgs/Image mask_img
 sensor_msgs/PointCloud2 pc_in
 ---
 sensor_msgs/PointCloud2 pc_out
