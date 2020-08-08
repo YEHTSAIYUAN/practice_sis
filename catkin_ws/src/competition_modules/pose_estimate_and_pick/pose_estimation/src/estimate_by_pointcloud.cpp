@@ -47,18 +47,27 @@ using namespace std;
 
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudXYZRGB;
 
-#define classNum 5
+#define classNum 4
 static const int classID[classNum]={0, 100, 150, 200};
 
+class ObjectWithPoints{
+  public:
+    ObjectWithPoints(){
+      cloud = PointCloudXYZRGB::Ptr(new PointCloudXYZRGB);
+    }
+    PointCloudXYZRGB::Ptr cloud;  
+    int obj_id;
+};
 class EstimationNode{
   public:
     //function declaration
     EstimationNode(ros::NodeHandle nh_);
     static void sigint_cb(int sig);
     bool pose_estimate_cb(competition_msgs::pose_estimationRequest& req,competition_msgs::pose_estimationResponse& resp);
-    void extract_pointcloud( cv_bridge::CvImagePtr mask_img,
-                             PointCloudXYZRGB::Ptr cloud_in,
-                             PointCloudXYZRGB::Ptr cloud_out );
+    std::vector<ObjectWithPoints> extract_pointcloud( cv_bridge::CvImagePtr mask_img,
+                                                      PointCloudXYZRGB::Ptr cloud_in,
+                                                      PointCloudXYZRGB::Ptr cloud_out );
+    std::vector<ObjectWithPoints> object_clustering( PointCloudXYZRGB::Ptr cloud_in, int class_idx);
     //geometry_msgs::pose pose_estimating_by_pca(PointCloudXYZRGB::Ptr object_pcl);
 
 
@@ -95,7 +104,7 @@ bool EstimationNode::pose_estimate_cb(competition_msgs::pose_estimationRequest& 
     listener.lookupTransform("/base_link", "/camera_color_optical_frame", ros::Time(0), transform); //Time(0) means the latest available tranform in the buffer
   }
   catch (tf::TransformException ex){
-      ROS_ERROR("%s",ex.what());
+      //ROS_ERROR("%s",ex.what());
       ros::Duration(1.0).sleep();
   }
   sensor_msgs::PointCloud2 tmp_pcl_msg;
@@ -107,17 +116,10 @@ bool EstimationNode::pose_estimate_cb(competition_msgs::pose_estimationRequest& 
   pcl::fromROSMsg (tmp_pcl_msg, *pcl_raw);
   
   // extract object's pointcloud by mask_img
+  std::vector<ObjectWithPoints> obj_list;
   PointCloudXYZRGB::Ptr pcl_extracted(new PointCloudXYZRGB);
-  EstimationNode::extract_pointcloud( mask_img, pcl_raw, pcl_extracted );
+  obj_list = EstimationNode::extract_pointcloud( mask_img, pcl_raw, pcl_extracted );
   
-  
-
-  /*
-  PointCloudXYZRGB::Ptr filtered_pcl(new PointCloudXYZRGB);
-  std::vector<int> indices;
-  pcl::removeNaNFromPointCloud(*pcl,*filtered_pcl,indices);
-  printf("Nonnan Cloud Number: %d\n",filtered_pcl->points.size());
-  */
   resp.id = 123;
 
   
@@ -125,10 +127,11 @@ bool EstimationNode::pose_estimate_cb(competition_msgs::pose_estimationRequest& 
 }
 
 
-void EstimationNode::extract_pointcloud(  cv_bridge::CvImagePtr mask_img,
-                                          PointCloudXYZRGB::Ptr cloud_in,
-                                          PointCloudXYZRGB::Ptr cloud_out)
+std::vector<ObjectWithPoints> EstimationNode::extract_pointcloud( cv_bridge::CvImagePtr mask_img,
+                                                                  PointCloudXYZRGB::Ptr cloud_in,
+                                                                  PointCloudXYZRGB::Ptr cloud_out)
 {
+  std::vector<ObjectWithPoints> obj_list;
   // start to extract
   int img_height = mask_img->image.rows;
   int img_width = mask_img->image.cols;
@@ -149,14 +152,14 @@ void EstimationNode::extract_pointcloud(  cv_bridge::CvImagePtr mask_img,
     extract.setIndices(inliers);                
     extract.setNegative(false);  //false: 筛选Index对应的点，true：过滤获取Index之外的点               
     extract.filter(*cloud_extracted);
-    printf("extract Cloud Number: %d\n",cloud_extracted->points.size());
+    printf("ID:%d, extract Cloud Number: %d\n",id,cloud_extracted->points.size());
     if(cloud_extracted->points.size() < 10)
       continue;
 
     //rempve NAN points
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(*cloud_extracted,*cloud_extracted,indices);
-    printf("Non NAN extract Cloud Number: %d\n",cloud_extracted->points.size());
+    //printf("Non NAN extract Cloud Number: %d\n",cloud_extracted->points.size());
     if(cloud_extracted->points.size() < 10)
       continue;
 
@@ -169,18 +172,63 @@ void EstimationNode::extract_pointcloud(  cv_bridge::CvImagePtr mask_img,
     outrem.filter(*cloud_extracted_filtered);//apply filter
 
 
-    //pointcloud ptr to ROSmessage
-    sensor_msgs::PointCloud2 cloud_msg;
-    pcl::toROSMsg(*cloud_extracted_filtered, cloud_msg);
-    while(ros::ok()){
-      cloud_msg.header.frame_id = "base_link";
-      printf("frame_id: %s\n", cloud_msg.header.frame_id.c_str());
-      ObjectExtract_pub.publish(cloud_msg);
-    }
-  }
+    // do clustering
+    std::vector<ObjectWithPoints> obj_list;
+    std::vector<ObjectWithPoints> tmp_list;
+    tmp_list = object_clustering(cloud_extracted_filtered,classID[id]);
+    obj_list.insert(obj_list.end(), tmp_list.begin(), tmp_list.end());
   
-}
+  }
+  //pointcloud ptr to ROSmessage
+  PointCloudXYZRGB::Ptr cloud_no_background(new PointCloudXYZRGB);
+  for(int i = 0; i < obj_list.size(); i++) {
+      *cloud_no_background += *(obj_list[i].cloud);
+  }
+  printf("cloud_no_background pointssize=%ld\n",cloud_no_background->points.size());
+  sensor_msgs::PointCloud2 cloud_msg;
+  pcl::toROSMsg(*cloud_no_background, cloud_msg);
 
+  
+  cloud_msg.header.frame_id = "base_link";
+  //printf("frame_id: %s\n", cloud_msg.header.frame_id.c_str());
+  ObjectExtract_pub.publish(cloud_msg);
+  
+  return obj_list;
+}
+std::vector<ObjectWithPoints> EstimationNode::object_clustering(PointCloudXYZRGB::Ptr cloud_in, int class_idx){
+
+  // Creating the KdTree object for the search method of the extraction
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>);
+  tree->setInputCloud (cloud_in);
+  std::vector<pcl::PointIndices> cluster_indices;
+  // do clustering
+  pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> cluster;
+  cluster.setClusterTolerance (0.05); // 5cm
+  cluster.setMinClusterSize (10);
+  cluster.setMaxClusterSize (25000);
+  cluster.setSearchMethod (tree);
+  cluster.setInputCloud (cloud_in);
+  cluster.extract (cluster_indices);
+  
+  // declare obj_list for storing the cluster result 
+  std::vector<ObjectWithPoints> obj_list;
+  ObjectWithPoints obj_with_points; 
+
+  for ( std::vector<pcl::PointIndices>::const_iterator i = cluster_indices.begin(); i!=cluster_indices.end() ; ++i ){ //pointcloud was clustered in to "i" groups
+    for (std::vector<int>::const_iterator j = i->indices.begin(); j!=i->indices.end(); ++j){ // the pointcloud of each group was stored in obj_with_point
+      obj_with_points.cloud->points.push_back(cloud_in->points[*j]);
+    }
+    obj_with_points.obj_id = class_idx;
+    obj_list.push_back(obj_with_points);
+    //
+    printf("obj_id=%d,points_size=%d\n",class_idx,obj_with_points.cloud->points.size());
+  }
+
+  
+  return obj_list;
+  
+
+}
 
 void EstimationNode::sigint_cb(int sig) {
     printf("ROS Node: %s is shutdown.\n", ros::this_node::getName().c_str());
